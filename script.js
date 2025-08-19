@@ -1,30 +1,29 @@
 /* --------------------------------
-   Class Scheduler (with Share/Import)
-   - Fix: 1-hour vertical offset corrected
-   - Add/Edit via modal, details modal
-   - Saves to localStorage
-   - Share: copy link (URL-embedded), export/import JSON
+   Class Scheduler (Share + Title + Import fix)
 ---------------------------------- */
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const START_HOUR = 8;   // 8:00
 const END_HOUR   = 20;  // 20:00 (8pm)
-const SLOT_PER_HOUR = 2; // 30-min increments
+const SLOT_PER_HOUR = 2; // 30-minute increments
 
-// === Fix: ensure hour height and vertical alignment are consistent ===
-let HOUR_HEIGHT = 56; // fallback
+let HOUR_HEIGHT = 56;
 function refreshComputedSizes() {
   const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--slot-height"));
   HOUR_HEIGHT = Number.isFinite(v) ? v : 56;
 }
 
-/* The previous version effectively anchored blocks one hour too early.
-   To correct this cleanly for all browsers, we align the absolute block
-   positioning to a baseline offset equal to the first hour row height. */
-const BASELINE_OFFSET_MINUTES = 60; // push blocks down exactly 1 hour
+/* Fixed vertical offset (from previous version) */
+const BASELINE_OFFSET_MINUTES = 60;
 
-const storageKey = "scheduleDataV1";
-let classes = []; // array of class objects
+const storageKey = "scheduleStateV2";
+
+/** App state persisted, exported, and embedded in share links */
+let state = {
+  version: 2,
+  title: "My Class Schedule",
+  classes: []
+};
 
 // Elements
 const scheduleGrid = document.getElementById("scheduleGrid");
@@ -32,10 +31,13 @@ const addClassBtn = document.getElementById("addClassBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const yearEl = document.getElementById("year");
 
+const titleText = document.getElementById("titleText");
+const editTitleBtn = document.getElementById("editTitleBtn");
+
 // Share/Import controls
 const copyLinkBtn = document.getElementById("copyLinkBtn");
 const downloadBtn = document.getElementById("downloadBtn");
-const uploadBtn = document.getElementById("uploadBtn");
+// Import: label triggers this reliably on all browsers
 const fileInput = document.getElementById("fileInput");
 
 // Modals
@@ -55,16 +57,20 @@ const detailsRoom    = document.getElementById("detailsRoom");
 const editFromDetailsBtn = document.getElementById("editFromDetailsBtn");
 const deleteFromDetailsBtn = document.getElementById("deleteFromDetailsBtn");
 
-// State for selected class in details
-let currentDetailsId = null;
-
 // Init
 document.addEventListener("DOMContentLoaded", () => {
   refreshComputedSizes();
   yearEl.textContent = new Date().getFullYear();
   buildGrid();
-  loadFromURLIfPresent(); // NEW: load schedule from share link if provided
-  load();                // then overlay with local storage (user's saved)
+
+  // 1) Try to load from share link
+  loadFromURLIfPresent();
+  // 2) Load from localStorage (and migrate from old key if present)
+  loadFromLocalStorage();
+
+  // Apply title
+  titleText.textContent = state.title;
+
   render();
   wireUI();
 });
@@ -74,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function buildGrid(){
   scheduleGrid.innerHTML = "";
 
-  // Header row: blank top-left + 7 day headers
+  // Header row: blank top-left + day headers
   const topLeft = document.createElement("div");
   topLeft.className = "day-header";
   topLeft.style.position = "sticky";
@@ -118,18 +124,27 @@ function wireUI(){
   addClassBtn.addEventListener("click", openAddModal);
   clearAllBtn.addEventListener("click", clearAll);
 
+  // Title rename
+  editTitleBtn.addEventListener("click", () => {
+    const next = prompt("Schedule title:", state.title || "My Class Schedule");
+    if (next && next.trim()){
+      state.title = next.trim();
+      titleText.textContent = state.title;
+      saveToLocalStorage();
+      // update share link silently in case user copies after rename
+    }
+  });
+
   // Share/Import
   copyLinkBtn.addEventListener("click", copyShareLink);
   downloadBtn.addEventListener("click", downloadJSON);
-  uploadBtn.addEventListener("click", () => fileInput.click());
+
+  // Import: listen for file selection (fix for “does nothing”)
   fileInput.addEventListener("change", importFromFile);
 
   // Modal close buttons
   document.querySelectorAll("[data-close-modal]").forEach(btn => {
-    btn.addEventListener("click", e => {
-      const dlg = e.currentTarget.closest("dialog");
-      dlg?.close();
-    });
+    btn.addEventListener("click", e => e.currentTarget.closest("dialog")?.close());
   });
 
   classForm.addEventListener("submit", onSaveClass);
@@ -153,26 +168,23 @@ function wireUI(){
     detailsModal.close();
   });
 
-  // Close dialogs on backdrop click
+  // Dismiss dialogs on backdrop click
   [classModal, detailsModal].forEach(d => {
     d.addEventListener("click", (e) => {
       const rect = d.querySelector(".modal-card").getBoundingClientRect();
-      const inDialog = (
+      const inDialog =
         e.clientX >= rect.left && e.clientX <= rect.right &&
-        e.clientY >= rect.top && e.clientY <= rect.bottom
-      );
+        e.clientY >= rect.top && e.clientY <= rect.bottom;
       if (!inDialog) d.close();
     });
   });
 
-  // Keyboard: open Add modal with "n"
+  // Keyboard shortcut
   document.addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() === "n" && !classModal.open && !detailsModal.open){
-      openAddModal();
-    }
+    if (e.key.toLowerCase() === "n" && !classModal.open && !detailsModal.open) openAddModal();
   });
 
-  // Re-compute sizes on resize (in case of dynamic font sizing)
+  // Recompute sizes on resize
   window.addEventListener("resize", () => {
     refreshComputedSizes();
     buildGrid();
@@ -180,29 +192,39 @@ function wireUI(){
   });
 }
 
-/* ---------- Storage ---------- */
+/* ---------- Persistence ---------- */
 
-function load(){
+function loadFromLocalStorage(){
   try{
+    // New format
     const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    // Only add items localStorage has that aren't already present
-    const ids = new Set(classes.map(c => c.id));
-    parsed.forEach(c => { if (!ids.has(c.id)) classes.push(c); });
+    if (raw){
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object"){
+        state = { version: 2, title: obj.title || "My Class Schedule", classes: Array.isArray(obj.classes) ? obj.classes : [] };
+        return;
+      }
+    }
+    // Migrate from old key (classes only)
+    const oldRaw = localStorage.getItem("scheduleDataV1");
+    if (oldRaw){
+      const classes = JSON.parse(oldRaw) || [];
+      state.classes = Array.isArray(classes) ? classes : [];
+      saveToLocalStorage();
+    }
   }catch(e){
-    console.warn("Failed to parse schedule storage:", e);
+    console.warn("Failed to parse stored schedule:", e);
   }
 }
 
-function save(){
-  localStorage.setItem(storageKey, JSON.stringify(classes));
+function saveToLocalStorage(){
+  localStorage.setItem(storageKey, JSON.stringify(state));
 }
 
 /* ---------- Share / Import / Export ---------- */
 
-// Encode classes into URL (base64 of JSON in ?s=)
 function buildShareURL(){
-  const json = JSON.stringify(classes);
+  const json = JSON.stringify(state);
   const b64 = btoa(unescape(encodeURIComponent(json)));
   const url = new URL(window.location.href);
   url.searchParams.set("s", b64);
@@ -226,11 +248,17 @@ function loadFromURLIfPresent(){
   try{
     const json = decodeURIComponent(escape(atob(s)));
     const incoming = JSON.parse(json);
-    if (Array.isArray(incoming)){
-      classes = incoming;
-      save(); // also persist locally
+    if (incoming && typeof incoming === "object"){
+      // Backward compatibility: old links might be an array
+      if (Array.isArray(incoming)){
+        state.classes = incoming;
+      } else {
+        state.title = incoming.title || state.title;
+        state.classes = Array.isArray(incoming.classes) ? incoming.classes : [];
+      }
+      saveToLocalStorage();
       toast("Loaded schedule from link.");
-      // Clear param so users don't keep re-importing on refresh
+      // remove param to avoid re-imports
       url.searchParams.delete("s");
       history.replaceState(null, "", url.toString());
     }
@@ -240,11 +268,11 @@ function loadFromURLIfPresent(){
 }
 
 function downloadJSON(){
-  const blob = new Blob([JSON.stringify(classes, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "schedule.json";
+  a.download = `${(state.title || "schedule").replace(/\s+/g,"_")}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -257,34 +285,26 @@ function importFromFile(e){
     try{
       const incoming = JSON.parse(reader.result);
       if (Array.isArray(incoming)){
-        classes = incoming;
-        save();
-        render();
-        toast("Schedule imported.");
+        // very old export (classes only)
+        state.classes = incoming;
+      } else if (incoming && typeof incoming === "object"){
+        state.title = incoming.title || state.title;
+        state.classes = Array.isArray(incoming.classes) ? incoming.classes : [];
       } else {
-        alert("Invalid file format.");
+        return alert("Invalid file format.");
       }
+      titleText.textContent = state.title;
+      saveToLocalStorage();
+      render();
+      toast("Schedule imported.");
     }catch{
       alert("Could not parse the JSON file.");
     }finally{
-      fileInput.value = "";
+      // allow re-importing the same file consecutively
+      e.target.value = "";
     }
   };
   reader.readAsText(file);
-}
-
-function toast(msg){
-  // quick unobtrusive toast
-  const t = document.createElement("div");
-  t.textContent = msg;
-  Object.assign(t.style, {
-    position: "fixed", bottom: "16px", left: "50%", transform: "translateX(-50%)",
-    background: "#0f1422", color: "#e6e8ed", padding: "10px 14px",
-    borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px #2b3550",
-    zIndex: 9999, fontSize: "14px"
-  });
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 1800);
 }
 
 /* ---------- CRUD ---------- */
@@ -297,13 +317,13 @@ function onSaveClass(e){
   if (!data) return;
 
   if (editingIdInput.value){
-    const idx = classes.findIndex(c => c.id === editingIdInput.value);
-    if (idx !== -1) classes[idx] = { ...classes[idx], ...data };
+    const idx = state.classes.findIndex(c => c.id === editingIdInput.value);
+    if (idx !== -1) state.classes[idx] = { ...state.classes[idx], ...data };
   } else {
-    classes.push({ id: crypto.randomUUID(), ...data });
+    state.classes.push({ id: crypto.randomUUID(), ...data });
   }
 
-  save();
+  saveToLocalStorage();
   render();
 
   classModal.close();
@@ -312,8 +332,8 @@ function onSaveClass(e){
 }
 
 function deleteClass(id){
-  classes = classes.filter(c => c.id !== id);
-  save();
+  state.classes = state.classes.filter(c => c.id !== id);
+  saveToLocalStorage();
   render();
 }
 
@@ -330,7 +350,7 @@ function resetModalForAdd(){
 }
 
 function openEditModal(id){
-  const cls = classes.find(c => c.id === id);
+  const cls = state.classes.find(c => c.id === id);
   if (!cls) return;
 
   modalTitle.textContent = "Edit Class";
@@ -344,6 +364,7 @@ function openEditModal(id){
   document.getElementById("endTime").value = cls.end;
   document.getElementById("color").value = cls.color || "#4f46e5";
 
+  // Days
   const dayInputs = classForm.querySelectorAll('input[name="days"]');
   dayInputs.forEach(inp => inp.checked = (cls.days || []).includes(inp.value));
 
@@ -352,15 +373,15 @@ function openEditModal(id){
 
 /* ---------- Rendering ---------- */
 
+let currentDetailsId = null;
+
 function render(){
   document.querySelectorAll(".day-col").forEach(col => col.innerHTML = "");
 
   const byDay = {};
   DAYS.forEach(d => byDay[d] = []);
 
-  classes.forEach(cls => {
-    (cls.days || []).forEach(day => byDay[day].push(cls));
-  });
+  state.classes.forEach(cls => (cls.days || []).forEach(day => byDay[day].push(cls)));
 
   DAYS.forEach(day => {
     const col = document.querySelector(`.day-col[data-day="${day}"]`);
@@ -396,7 +417,7 @@ function render(){
 }
 
 function openDetails(id){
-  const cls = classes.find(c => c.id === id);
+  const cls = state.classes.find(c => c.id === id);
   if (!cls) return;
 
   currentDetailsId = id;
@@ -422,19 +443,18 @@ function getFormData(){
 
   if (!name){ formHelp.textContent = "Please enter a class name."; return null; }
   if (!start || !end){ formHelp.textContent = "Please enter both start and end times."; return null; }
-  if (!isStartBeforeEnd(start, end)){ formHelp.textContent = "End time must be after start time."; return null; }
+  if (timeToMinutes(start) >= timeToMinutes(end)){ formHelp.textContent = "End time must be after start time."; return null; }
   if (days.length === 0){ formHelp.textContent = "Select at least one day."; return null; }
 
   return { name, teacher, room, start, end, days, color };
 }
 
-function isStartBeforeEnd(start, end){ return timeToMinutes(start) < timeToMinutes(end); }
 function timeToMinutes(t){ const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
 function timeToPixels(t){
   const mins = timeToMinutes(t);
   const startMins = START_HOUR * 60;
-  const offset = Math.max(0, mins - startMins + BASELINE_OFFSET_MINUTES); // <<< FIX
+  const offset = Math.max(0, mins - startMins + BASELINE_OFFSET_MINUTES);
   const hourFrac = offset / 60;
   return hourFrac * HOUR_HEIGHT;
 }
@@ -467,7 +487,21 @@ function computeLanes(blocks){
 
 function clearAll(){
   if (!confirm("Delete all classes from your schedule?")) return;
-  classes = [];
-  save();
+  state.classes = [];
+  saveToLocalStorage();
   render();
+}
+
+/* Tiny toast helper */
+function toast(msg){
+  const t = document.createElement("div");
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: "fixed", bottom: "16px", left: "50%", transform: "translateX(-50%)",
+    background: "#0f1422", color: "#e6e8ed", padding: "10px 14px",
+    borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px #2b3550",
+    zIndex: 9999, fontSize: "14px"
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
 }
