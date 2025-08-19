@@ -1,0 +1,234 @@
+:root{
+  --bg: #0b0e14;
+  --panel: #111520;
+  --muted: #222838;
+  --text: #e6e8ed;
+  --subtle: #a8b0c2;
+  --accent: #6366f1;
+  --accent-2: #22c55e;
+  --danger: #ef4444;
+  --grid-line: #1f2535;
+  --slot-height: 56px; /* height per hour */
+  --slot-subdiv: 2;    /* 2 => 30-minute rows */
+  --radius: 14px;
+  --shadow: 0 10px 30px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.03);
+  --col-gap: 10px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+  color:var(--text);
+  background: linear-gradient(180deg, #0b0e14, #0b0e14 60%, #0d1019);
+}
+
+.app-header, .app-footer{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 22px;
+  background:transparent;
+  position:sticky;
+  top:0; z-index:10;
+  backdrop-filter:saturate(120%) blur(8px);
+}
+.app-header h1{
+  font-size:clamp(18px, 2.2vw, 28px);
+  margin:0;
+  letter-spacing:.3px;
+}
+.header-actions { display:flex; gap:10px; }
+
+.container{
+  max-width:1200px;
+  margin: 0 auto;
+  padding: 8px 16px 40px;
+}
+
+.legend{
+  display:flex;
+  gap:20px;
+  align-items:center;
+  padding:10px 4px 18px;
+  color:var(--subtle);
+  font-size:14px;
+}
+.legend .dot{
+  display:inline-block; width:10px; height:10px; border-radius:50%;
+  background:var(--accent);
+  margin-right:8px;
+}
+.legend .dot.outline{ background:transparent; border:2px solid var(--subtle) }
+
+.schedule-wrapper{
+  overflow:auto;
+  background:var(--panel);
+  border-radius:var(--radius);
+  box-shadow: var(--shadow);
+  border:1px solid #151b2a;
+}
+
+/* Grid: 1 time column + 7 day columns */
+.schedule-grid{
+  display:grid;
+  grid-template-columns: 90px repeat(7, 1fr);
+  gap: var(--col-gap);
+  min-width: 900px; /* allow horizontal scroll on phones */
+}
+
+/* Header row (days) */
+.day-header{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:linear-gradient(180deg, rgba(17,21,32,.96), rgba(17,21,32,.84));
+  padding:12px 10px;
+  border-bottom:1px solid #1a2132;
+  font-weight:600;
+  text-align:center;
+  letter-spacing:.3px;
+}
+
+/* Time column */
+.time-col{
+  padding-top:48px; /* space under top header row */
+  border-right:1px dashed #1a2132;
+}
+.time-label{
+  height: calc(var(--slot-height) / 1); /* per hour */
+  position:relative;
+  color:var(--subtle);
+  font-size:12px;
+}
+.time-label span{
+  position:absolute; top:-7px; right:12px;
+}
+
+/* Day columns */
+.day-col{
+  position:relative;
+  padding-top:48px;
+  min-height: calc((var(--slot-height)) * 12); /* default grid height (e.g., 8am-8pm) */
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--slot-height) / var(--slot-subdiv) - 1px),
+      var(--grid-line) calc(var(--slot-height) / var(--slot-subdiv) - 1px),
+      var(--grid-line) calc(var(--slot-height) / var(--slot-subdiv))
+    );
+  border-left:1px solid #141a29;
+}
+
+/* Class blocks */
+.class-block{
+  position:absolute;
+  left:8px; right:8px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:var(--accent);
+  color:white;
+  box-shadow: 0 6px 18px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.15);
+  cursor:pointer;
+  user-select:none;
+  overflow:hidden;
+  display:flex; flex-direction:column; gap:4px;
+}
+.class-title{
+  font-weight:700; font-size:13px; line-height:1.2; letter-spacing:.2px;
+  text-shadow: 0 1px 0 rgba(0,0,0,.15);
+}
+.class-meta{
+  font-size:12px; opacity:.95;
+  display:flex; gap:8px; flex-wrap:wrap;
+}
+
+/* When overlapping, we compute lanes; style narrower lanes */
+.class-block.lane-0{ left:8px }
+.class-block.lane-1{ left:8px; right:54% }
+.class-block.lane-2{ left:8px; right:66% }
+.class-block.lane-3{ left:8px; right:75% }
+
+/* Buttons */
+.btn{
+  appearance:none; border:none; cursor:pointer;
+  border-radius:10px; padding:10px 14px; font-weight:600;
+  background:#1b2233; color:var(--text);
+  box-shadow: inset 0 0 0 1px #2b3550;
+}
+.btn:hover{ filter:brightness(1.05) }
+.btn:active{ transform:translateY(1px) }
+.btn-primary{ background: linear-gradient(180deg, #6b72ff, #4f46e5); color:#fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2) }
+.btn-ghost{ background:transparent; box-shadow: inset 0 0 0 1px #2b3550; color:var(--subtle) }
+.btn-danger{ background: linear-gradient(180deg, #ff6b6b, #ef4444); color:#fff }
+
+.icon-btn{
+  background:transparent; border:none; color:var(--subtle);
+  font-size:18px; cursor:pointer; line-height:1;
+}
+
+/* Modals */
+.modal{
+  border:none; padding:0; background: transparent;
+}
+.modal::backdrop{
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(2px);
+}
+.modal-card{
+  width:min(720px, 92vw);
+  background:var(--panel);
+  color:var(--text);
+  border-radius:16px;
+  box-shadow: var(--shadow);
+  border:1px solid #151b2a;
+  overflow:hidden;
+}
+.modal-header, .modal-footer{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px;
+  background: linear-gradient(180deg, #121829, #121829f2);
+  border-bottom:1px solid #1a2132;
+}
+.modal-footer{
+  border-top:1px solid #1a2132; border-bottom:none; background:#111520;
+  gap:10px; justify-content:flex-end;
+}
+.modal-body{ padding:16px; display:grid; gap:16px; }
+
+/* Forms */
+.form-row{ display:flex; flex-direction:column; gap:8px }
+.form-grid{ display:grid; gap:14px; grid-template-columns: repeat(3, 1fr); }
+fieldset.days-fieldset{ border:1px dashed #2b3550; border-radius:12px; padding:10px 12px }
+fieldset legend{ padding:0 6px; color:var(--subtle) }
+.days{ display:flex; flex-wrap:wrap; gap:12px; padding-top:6px }
+label{ font-size:14px; color:var(--subtle) }
+input[type="text"], input[type="time"], input[type="color"]{
+  width:100%; padding:10px 12px; border-radius:10px;
+  border:1px solid #2b3550; background:#0f1422; color:var(--text);
+  outline: none;
+}
+input[type="time"]{ font-feature-settings: "tnum" on, "lnum" on }
+.req{ color:#ffafaf }
+
+.help-text{ color:#eab308; min-height:1.2em; font-size:13px }
+
+.details-grid{
+  display:grid; gap:10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size:15px;
+}
+
+.app-footer{
+  color:var(--subtle);
+  border-top: 1px solid #121827;
+}
+
+/* Utilities */
+.hidden{ display:none !important; }
+
+/* Responsive */
+@media (max-width: 880px){
+  .form-grid{ grid-template-columns: 1fr; }
+  .details-grid{ grid-template-columns: 1fr; }
+}

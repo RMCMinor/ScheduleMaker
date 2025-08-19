@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Class Schedule</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>My Class Schedule</h1>
+    <div class="header-actions">
+      <button id="addClassBtn" class="btn btn-primary">+ Add Class</button>
+      <button id="clearAllBtn" class="btn btn-ghost" title="Clear all classes">Clear All</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="legend">
+      <div class="legend-item">
+        <span class="dot"></span>
+        <span>Click a class to view details</span>
+      </div>
+      <div class="legend-item">
+        <span class="dot outline"></span>
+        <span>Drag to scroll horizontally on smaller screens</span>
+      </div>
+    </section>
+
+    <section class="schedule-wrapper" id="scheduleWrapper" aria-label="Weekly schedule">
+      <!-- Time column + day columns are built by script.js -->
+      <div id="scheduleGrid" class="schedule-grid"></div>
+    </section>
+  </main>
+
+  <!-- Add/Edit Class Modal -->
+  <dialog id="classModal" class="modal">
+    <form id="classForm" class="modal-card" method="dialog">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Class</h2>
+        <button type="button" class="icon-btn" data-close-modal aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-row">
+          <label for="className">Class Name <span class="req">*</span></label>
+          <input id="className" name="className" type="text" placeholder="e.g., Calculus I" required />
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label for="teacher">Teacher</label>
+            <input id="teacher" name="teacher" type="text" placeholder="e.g., Prof. Nguyen" />
+          </div>
+          <div class="form-row">
+            <label for="room">Room</label>
+            <input id="room" name="room" type="text" placeholder="e.g., B201" />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label for="startTime">Start Time <span class="req">*</span></label>
+            <input id="startTime" name="startTime" type="time" required />
+          </div>
+          <div class="form-row">
+            <label for="endTime">End Time <span class="req">*</span></label>
+            <input id="endTime" name="endTime" type="time" required />
+          </div>
+          <div class="form-row">
+            <label for="color">Color</label>
+            <input id="color" name="color" type="color" value="#4f46e5" />
+          </div>
+        </div>
+
+        <fieldset class="days-fieldset">
+          <legend>Days <span class="req">*</span></legend>
+          <div class="days">
+            <label><input type="checkbox" name="days" value="Sun" />Sun</label>
+            <label><input type="checkbox" name="days" value="Mon" />Mon</label>
+            <label><input type="checkbox" name="days" value="Tue" />Tue</label>
+            <label><input type="checkbox" name="days" value="Wed" />Wed</label>
+            <label><input type="checkbox" name="days" value="Thu" />Thu</label>
+            <label><input type="checkbox" name="days" value="Fri" />Fri</label>
+            <label><input type="checkbox" name="days" value="Sat" />Sat</label>
+          </div>
+        </fieldset>
+
+        <input type="hidden" id="editingId" />
+        <p class="help-text" id="formHelp"></p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary" id="saveClassBtn">Save</button>
+        <button type="button" class="btn" data-close-modal>Cancel</button>
+        <button type="button" class="btn btn-danger hidden" id="deleteClassBtn">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Class Details Modal -->
+  <dialog id="detailsModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="detailsTitle">Class Details</h2>
+        <button type="button" class="icon-btn" data-close-modal aria-label="Close">
+          ✕
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="details-grid">
+          <div><strong>Time:</strong> <span id="detailsTime"></span></div>
+          <div><strong>Days:</strong> <span id="detailsDays"></span></div>
+          <div><strong>Teacher:</strong> <span id="detailsTeacher"></span></div>
+          <div><strong>Room:</strong> <span id="detailsRoom"></span></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="editFromDetailsBtn">Edit</button>
+        <button type="button" class="btn btn-danger" id="deleteFromDetailsBtn">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <footer class="app-footer">
+    <span>&copy; <span id="year"></span> Schedule</span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
