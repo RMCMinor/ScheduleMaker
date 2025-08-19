@@ -37,7 +37,8 @@ body{
   margin:0;
   letter-spacing:.3px;
 }
-.header-actions { display:flex; gap:10px; }
+.header-actions { display:flex; gap:10px; align-items:center; }
+.share-group { display:flex; gap:10px; flex-wrap:wrap; }
 
 .container{
   max-width:1200px;
@@ -73,7 +74,7 @@ body{
   display:grid;
   grid-template-columns: 90px repeat(7, 1fr);
   gap: var(--col-gap);
-  min-width: 900px; /* allow horizontal scroll on phones */
+  min-width: 900px;
 }
 
 /* Header row (days) */
@@ -91,11 +92,11 @@ body{
 
 /* Time column */
 .time-col{
-  padding-top:48px; /* space under top header row */
+  padding-top:56px; /* match hour height for perfect alignment */
   border-right:1px dashed #1a2132;
 }
 .time-label{
-  height: calc(var(--slot-height) / 1); /* per hour */
+  height: calc(var(--slot-height));
   position:relative;
   color:var(--subtle);
   font-size:12px;
@@ -107,8 +108,8 @@ body{
 /* Day columns */
 .day-col{
   position:relative;
-  padding-top:48px;
-  min-height: calc((var(--slot-height)) * 12); /* default grid height (e.g., 8am-8pm) */
+  padding-top:56px; /* match hour height for perfect alignment */
+  min-height: calc((var(--slot-height)) * 12);
   background:
     repeating-linear-gradient(
       to bottom,
@@ -134,16 +135,10 @@ body{
   overflow:hidden;
   display:flex; flex-direction:column; gap:4px;
 }
-.class-title{
-  font-weight:700; font-size:13px; line-height:1.2; letter-spacing:.2px;
-  text-shadow: 0 1px 0 rgba(0,0,0,.15);
-}
-.class-meta{
-  font-size:12px; opacity:.95;
-  display:flex; gap:8px; flex-wrap:wrap;
-}
+.class-title{ font-weight:700; font-size:13px; line-height:1.2; letter-spacing:.2px; text-shadow: 0 1px 0 rgba(0,0,0,.15); }
+.class-meta{ font-size:12px; opacity:.95; display:flex; gap:8px; flex-wrap:wrap; }
 
-/* When overlapping, we compute lanes; style narrower lanes */
+/* Overlap lanes */
 .class-block.lane-0{ left:8px }
 .class-block.lane-1{ left:8px; right:54% }
 .class-block.lane-2{ left:8px; right:66% }
@@ -162,19 +157,11 @@ body{
 .btn-ghost{ background:transparent; box-shadow: inset 0 0 0 1px #2b3550; color:var(--subtle) }
 .btn-danger{ background: linear-gradient(180deg, #ff6b6b, #ef4444); color:#fff }
 
-.icon-btn{
-  background:transparent; border:none; color:var(--subtle);
-  font-size:18px; cursor:pointer; line-height:1;
-}
+.icon-btn{ background:transparent; border:none; color:var(--subtle); font-size:18px; cursor:pointer; line-height:1; }
 
 /* Modals */
-.modal{
-  border:none; padding:0; background: transparent;
-}
-.modal::backdrop{
-  background: rgba(0,0,0,.6);
-  backdrop-filter: blur(2px);
-}
+.modal{ border:none; padding:0; background: transparent; }
+.modal::backdrop{ background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .modal-card{
   width:min(720px, 92vw);
   background:var(--panel);
@@ -190,10 +177,7 @@ body{
   background: linear-gradient(180deg, #121829, #121829f2);
   border-bottom:1px solid #1a2132;
 }
-.modal-footer{
-  border-top:1px solid #1a2132; border-bottom:none; background:#111520;
-  gap:10px; justify-content:flex-end;
-}
+.modal-footer{ border-top:1px solid #1a2132; border-bottom:none; background:#111520; gap:10px; justify-content:flex-end; }
 .modal-body{ padding:16px; display:grid; gap:16px; }
 
 /* Forms */
@@ -213,16 +197,9 @@ input[type="time"]{ font-feature-settings: "tnum" on, "lnum" on }
 
 .help-text{ color:#eab308; min-height:1.2em; font-size:13px }
 
-.details-grid{
-  display:grid; gap:10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  font-size:15px;
-}
+.details-grid{ display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); font-size:15px; }
 
-.app-footer{
-  color:var(--subtle);
-  border-top: 1px solid #121827;
-}
+.app-footer{ color:var(--subtle); border-top: 1px solid #121827; }
 
 /* Utilities */
 .hidden{ display:none !important; }
