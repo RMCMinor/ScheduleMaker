@@ -1,25 +1,42 @@
-/* -----------------------------
-   Class Scheduler
-   - Weekly grid with days across (Sun-Sat), times down
-   - Add/Edit via modal, click class to view details
+/* --------------------------------
+   Class Scheduler (with Share/Import)
+   - Fix: 1-hour vertical offset corrected
+   - Add/Edit via modal, details modal
    - Saves to localStorage
--------------------------------- */
+   - Share: copy link (URL-embedded), export/import JSON
+---------------------------------- */
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const START_HOUR = 8;   // 8:00
 const END_HOUR   = 20;  // 20:00 (8pm)
 const SLOT_PER_HOUR = 2; // 30-min increments
-const HOUR_HEIGHT = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--slot-height')) || 56;
+
+// === Fix: ensure hour height and vertical alignment are consistent ===
+let HOUR_HEIGHT = 56; // fallback
+function refreshComputedSizes() {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--slot-height"));
+  HOUR_HEIGHT = Number.isFinite(v) ? v : 56;
+}
+
+/* The previous version effectively anchored blocks one hour too early.
+   To correct this cleanly for all browsers, we align the absolute block
+   positioning to a baseline offset equal to the first hour row height. */
+const BASELINE_OFFSET_MINUTES = 60; // push blocks down exactly 1 hour
 
 const storageKey = "scheduleDataV1";
 let classes = []; // array of class objects
 
 // Elements
 const scheduleGrid = document.getElementById("scheduleGrid");
-const scheduleWrapper = document.getElementById("scheduleWrapper");
 const addClassBtn = document.getElementById("addClassBtn");
 const clearAllBtn = document.getElementById("clearAllBtn");
 const yearEl = document.getElementById("year");
+
+// Share/Import controls
+const copyLinkBtn = document.getElementById("copyLinkBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+const fileInput = document.getElementById("fileInput");
 
 // Modals
 const classModal = document.getElementById("classModal");
@@ -43,9 +60,11 @@ let currentDetailsId = null;
 
 // Init
 document.addEventListener("DOMContentLoaded", () => {
+  refreshComputedSizes();
   yearEl.textContent = new Date().getFullYear();
   buildGrid();
-  load();
+  loadFromURLIfPresent(); // NEW: load schedule from share link if provided
+  load();                // then overlay with local storage (user's saved)
   render();
   wireUI();
 });
@@ -53,7 +72,6 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ---------- UI Builders ---------- */
 
 function buildGrid(){
-  // Clear
   scheduleGrid.innerHTML = "";
 
   // Header row: blank top-left + 7 day headers
@@ -62,7 +80,6 @@ function buildGrid(){
   topLeft.style.position = "sticky";
   topLeft.style.left = "0";
   topLeft.style.zIndex = "6";
-  topLeft.textContent = ""; // empty corner
   scheduleGrid.appendChild(topLeft);
 
   DAYS.forEach(day => {
@@ -72,9 +89,7 @@ function buildGrid(){
     scheduleGrid.appendChild(head);
   });
 
-  // Time column + 7 day columns
   const totalHours = END_HOUR - START_HOUR;
-  const totalHalfHours = totalHours * SLOT_PER_HOUR;
 
   // Time column
   const timeCol = document.createElement("div");
@@ -102,6 +117,12 @@ function buildGrid(){
 function wireUI(){
   addClassBtn.addEventListener("click", openAddModal);
   clearAllBtn.addEventListener("click", clearAll);
+
+  // Share/Import
+  copyLinkBtn.addEventListener("click", copyShareLink);
+  downloadBtn.addEventListener("click", downloadJSON);
+  uploadBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", importFromFile);
 
   // Modal close buttons
   document.querySelectorAll("[data-close-modal]").forEach(btn => {
@@ -132,7 +153,7 @@ function wireUI(){
     detailsModal.close();
   });
 
-  // Close dialogs on backdrop click (native <dialog> doesn’t close automatically)
+  // Close dialogs on backdrop click
   [classModal, detailsModal].forEach(d => {
     d.addEventListener("click", (e) => {
       const rect = d.querySelector(".modal-card").getBoundingClientRect();
@@ -143,6 +164,20 @@ function wireUI(){
       if (!inDialog) d.close();
     });
   });
+
+  // Keyboard: open Add modal with "n"
+  document.addEventListener("keydown", (e) => {
+    if (e.key.toLowerCase() === "n" && !classModal.open && !detailsModal.open){
+      openAddModal();
+    }
+  });
+
+  // Re-compute sizes on resize (in case of dynamic font sizing)
+  window.addEventListener("resize", () => {
+    refreshComputedSizes();
+    buildGrid();
+    render();
+  });
 }
 
 /* ---------- Storage ---------- */
@@ -150,15 +185,106 @@ function wireUI(){
 function load(){
   try{
     const raw = localStorage.getItem(storageKey);
-    classes = raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Only add items localStorage has that aren't already present
+    const ids = new Set(classes.map(c => c.id));
+    parsed.forEach(c => { if (!ids.has(c.id)) classes.push(c); });
   }catch(e){
     console.warn("Failed to parse schedule storage:", e);
-    classes = [];
   }
 }
 
 function save(){
   localStorage.setItem(storageKey, JSON.stringify(classes));
+}
+
+/* ---------- Share / Import / Export ---------- */
+
+// Encode classes into URL (base64 of JSON in ?s=)
+function buildShareURL(){
+  const json = JSON.stringify(classes);
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  const url = new URL(window.location.href);
+  url.searchParams.set("s", b64);
+  return url.toString();
+}
+
+async function copyShareLink(){
+  const link = buildShareURL();
+  try{
+    await navigator.clipboard.writeText(link);
+    toast("Share link copied to clipboard.");
+  }catch{
+    prompt("Copy this link:", link);
+  }
+}
+
+function loadFromURLIfPresent(){
+  const url = new URL(window.location.href);
+  const s = url.searchParams.get("s");
+  if (!s) return;
+  try{
+    const json = decodeURIComponent(escape(atob(s)));
+    const incoming = JSON.parse(json);
+    if (Array.isArray(incoming)){
+      classes = incoming;
+      save(); // also persist locally
+      toast("Loaded schedule from link.");
+      // Clear param so users don't keep re-importing on refresh
+      url.searchParams.delete("s");
+      history.replaceState(null, "", url.toString());
+    }
+  }catch(e){
+    console.warn("Failed to load from URL:", e);
+  }
+}
+
+function downloadJSON(){
+  const blob = new Blob([JSON.stringify(classes, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "schedule.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importFromFile(e){
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const incoming = JSON.parse(reader.result);
+      if (Array.isArray(incoming)){
+        classes = incoming;
+        save();
+        render();
+        toast("Schedule imported.");
+      } else {
+        alert("Invalid file format.");
+      }
+    }catch{
+      alert("Could not parse the JSON file.");
+    }finally{
+      fileInput.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
+function toast(msg){
+  // quick unobtrusive toast
+  const t = document.createElement("div");
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: "fixed", bottom: "16px", left: "50%", transform: "translateX(-50%)",
+    background: "#0f1422", color: "#e6e8ed", padding: "10px 14px",
+    borderRadius: "10px", boxShadow: "0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px #2b3550",
+    zIndex: 9999, fontSize: "14px"
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
 }
 
 /* ---------- CRUD ---------- */
@@ -168,10 +294,9 @@ function onSaveClass(e){
   formHelp.textContent = "";
 
   const data = getFormData();
-  if (!data) return; // validation message already set
+  if (!data) return;
 
   if (editingIdInput.value){
-    // Update
     const idx = classes.findIndex(c => c.id === editingIdInput.value);
     if (idx !== -1) classes[idx] = { ...classes[idx], ...data };
   } else {
@@ -219,7 +344,6 @@ function openEditModal(id){
   document.getElementById("endTime").value = cls.end;
   document.getElementById("color").value = cls.color || "#4f46e5";
 
-  // Days
   const dayInputs = classForm.querySelectorAll('input[name="days"]');
   dayInputs.forEach(inp => inp.checked = (cls.days || []).includes(inp.value));
 
@@ -229,17 +353,13 @@ function openEditModal(id){
 /* ---------- Rendering ---------- */
 
 function render(){
-  // Clear existing blocks
   document.querySelectorAll(".day-col").forEach(col => col.innerHTML = "");
 
-  // For each day, compute positioned blocks
   const byDay = {};
   DAYS.forEach(d => byDay[d] = []);
 
   classes.forEach(cls => {
-    (cls.days || []).forEach(day => {
-      byDay[day].push(cls);
-    });
+    (cls.days || []).forEach(day => byDay[day].push(cls));
   });
 
   DAYS.forEach(day => {
@@ -250,10 +370,9 @@ function render(){
       height: durationToPixels(cls.start, cls.end)
     }));
 
-    // Overlap layout: assign lanes for overlapping blocks
     const laidOut = computeLanes(blocks);
 
-    laidOut.forEach((blk, i) => {
+    laidOut.forEach((blk) => {
       const el = document.createElement("div");
       el.className = `class-block lane-${blk.lane}`;
       el.style.top = `${blk.top}px`;
@@ -301,39 +420,21 @@ function getFormData(){
   const color = document.getElementById("color").value;
   const days = Array.from(classForm.querySelectorAll('input[name="days"]:checked')).map(i => i.value);
 
-  if (!name){
-    formHelp.textContent = "Please enter a class name.";
-    return null;
-  }
-  if (!start || !end){
-    formHelp.textContent = "Please enter both start and end times.";
-    return null;
-  }
-  if (!isStartBeforeEnd(start, end)){
-    formHelp.textContent = "End time must be after start time.";
-    return null;
-  }
-  if (days.length === 0){
-    formHelp.textContent = "Select at least one day.";
-    return null;
-  }
+  if (!name){ formHelp.textContent = "Please enter a class name."; return null; }
+  if (!start || !end){ formHelp.textContent = "Please enter both start and end times."; return null; }
+  if (!isStartBeforeEnd(start, end)){ formHelp.textContent = "End time must be after start time."; return null; }
+  if (days.length === 0){ formHelp.textContent = "Select at least one day."; return null; }
 
   return { name, teacher, room, start, end, days, color };
 }
 
-function isStartBeforeEnd(start, end){
-  return timeToMinutes(start) < timeToMinutes(end);
-}
-
-function timeToMinutes(t){
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
+function isStartBeforeEnd(start, end){ return timeToMinutes(start) < timeToMinutes(end); }
+function timeToMinutes(t){ const [h, m] = t.split(":").map(Number); return h * 60 + m; }
 
 function timeToPixels(t){
   const mins = timeToMinutes(t);
   const startMins = START_HOUR * 60;
-  const offset = Math.max(0, mins - startMins);
+  const offset = Math.max(0, mins - startMins + BASELINE_OFFSET_MINUTES); // <<< FIX
   const hourFrac = offset / 60;
   return hourFrac * HOUR_HEIGHT;
 }
@@ -343,42 +444,19 @@ function durationToPixels(start, end){
   return (durMins / 60) * HOUR_HEIGHT;
 }
 
-function formatHour(h){
-  const isPM = h >= 12;
-  const hr12 = ((h + 11) % 12) + 1;
-  return `${hr12}${isPM ? "pm" : "am"}`;
-}
+function formatHour(h){ const isPM = h >= 12; const hr12 = ((h + 11) % 12) + 1; return `${hr12}${isPM ? "pm" : "am"}`; }
+function formatTimeRange(start, end){ return `${to12hr(start)} – ${to12hr(end)}`; }
+function to12hr(t){ let [h, m] = t.split(":").map(Number); const isPM = h >= 12; const hr12 = ((h + 11) % 12) + 1; return `${hr12}:${String(m).padStart(2,'0')} ${isPM ? "PM" : "AM"}`; }
+function escapeHTML(str){ return str.replace(/[&<>"']/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[s])); }
 
-function formatTimeRange(start, end){
-  return `${to12hr(start)} – ${to12hr(end)}`;
-}
-
-function to12hr(t){
-  let [h, m] = t.split(":").map(Number);
-  const isPM = h >= 12;
-  const hr12 = ((h + 11) % 12) + 1;
-  return `${hr12}:${String(m).padStart(2,'0')} ${isPM ? "PM" : "AM"}`;
-}
-
-function escapeHTML(str){
-  return str.replace(/[&<>"']/g, s => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[s]));
-}
-
-/* Overlap lane calculation:
-   Greedy sweep-line: sort by start, assign the lowest free lane;
-   If overlapping, push into next lane (up to 4 lanes styled; more will still stack). */
+/* Overlap lane calculation */
 function computeLanes(blocks){
   const sorted = [...blocks].sort((a,b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-  const lanes = []; // array of end times per lane
+  const lanes = []; // end times per lane
   const result = [];
-
   for (const blk of sorted){
     let lane = 0;
-    while (lane < lanes.length && timeToMinutes(blk.start) < lanes[lane]) {
-      lane++;
-    }
+    while (lane < lanes.length && timeToMinutes(blk.start) < lanes[lane]) lane++;
     lanes[lane] = timeToMinutes(blk.end);
     result.push({ ...blk, lane });
   }
@@ -393,11 +471,3 @@ function clearAll(){
   save();
   render();
 }
-
-/* ---------- Accessibility niceties ---------- */
-// Keyboard: open Add modal with "n"
-document.addEventListener("keydown", (e) => {
-  if (e.key.toLowerCase() === "n" && !classModal.open && !detailsModal.open){
-    openAddModal();
-  }
-});
