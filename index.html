@@ -8,17 +8,22 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>My Class Schedule</h1>
+    <h1 id="titleText" aria-live="polite">My Class Schedule</h1>
     <div class="header-actions">
       <button id="addClassBtn" class="btn btn-primary">+ Add Class</button>
 
-      <!-- New: Save & Share controls -->
+      <!-- Save & Share -->
       <div class="share-group">
-        <button id="copyLinkBtn" class="btn">Copy Share Link</button>
+        <button id="copyLinkBtn" class="btn" title="Copy a link that embeds your schedule">Copy Share Link</button>
         <button id="downloadBtn" class="btn">Export JSON</button>
-        <button id="uploadBtn" class="btn btn-ghost">Import JSON</button>
-        <input id="fileInput" type="file" accept="application/json" class="hidden" />
+
+        <!-- Import JSON (label triggers file input reliably on all browsers) -->
+        <label for="fileInput" class="btn btn-ghost" id="uploadBtn">Import JSON</label>
+        <input id="fileInput" type="file" accept="application/json" />
       </div>
+
+      <!-- Rename title -->
+      <button id="editTitleBtn" class="btn btn-ghost" title="Rename schedule">Rename</button>
 
       <button id="clearAllBtn" class="btn btn-ghost" title="Clear all classes">Clear All</button>
     </div>
