@@ -11,6 +11,15 @@
     <h1>My Class Schedule</h1>
     <div class="header-actions">
       <button id="addClassBtn" class="btn btn-primary">+ Add Class</button>
+
+      <!-- New: Save & Share controls -->
+      <div class="share-group">
+        <button id="copyLinkBtn" class="btn">Copy Share Link</button>
+        <button id="downloadBtn" class="btn">Export JSON</button>
+        <button id="uploadBtn" class="btn btn-ghost">Import JSON</button>
+        <input id="fileInput" type="file" accept="application/json" class="hidden" />
+      </div>
+
       <button id="clearAllBtn" class="btn btn-ghost" title="Clear all classes">Clear All</button>
     </div>
   </header>
@@ -23,12 +32,11 @@
       </div>
       <div class="legend-item">
         <span class="dot outline"></span>
-        <span>Drag to scroll horizontally on smaller screens</span>
+        <span>Use “Copy Share Link” to share this exact schedule</span>
       </div>
     </section>
 
     <section class="schedule-wrapper" id="scheduleWrapper" aria-label="Weekly schedule">
-      <!-- Time column + day columns are built by script.js -->
       <div id="scheduleGrid" class="schedule-grid"></div>
     </section>
   </main>
@@ -38,9 +46,7 @@
     <form id="classForm" class="modal-card" method="dialog">
       <div class="modal-header">
         <h2 id="modalTitle">Add Class</h2>
-        <button type="button" class="icon-btn" data-close-modal aria-label="Close">
-          ✕
-        </button>
+        <button type="button" class="icon-btn" data-close-modal aria-label="Close">✕</button>
       </div>
 
       <div class="modal-body">
@@ -105,9 +111,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h2 id="detailsTitle">Class Details</h2>
-        <button type="button" class="icon-btn" data-close-modal aria-label="Close">
-          ✕
-        </button>
+        <button type="button" class="icon-btn" data-close-modal aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
         <div class="details-grid">
